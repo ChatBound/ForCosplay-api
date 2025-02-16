@@ -1,0 +1,148 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  NOT_PROCESS
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum Size {
+  S
+  M
+  L
+  XL
+  XXL
+}
+
+
+enum CartItemType {
+  RENTAL
+  PURCHASE
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String?   @unique 
+  picture   String?
+  email     String    @unique 
+  password  String?
+  address   String?   @db.Text
+  role      Role      @default(USER)
+  enabled   Boolean  @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  carts     Cart[]
+  orders    Order[]
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(100)
+  costumes  Costume[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Costume {
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(100)
+  description String
+  size        Size
+  sold        Int          @default(0)
+  quantity    Int
+  categoryId  Int
+  rentalPrice Float        @default(0.0)
+  salePrice   Float?       @default(0.0)
+  available   Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  category    Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  images      Image[]      // ความสัมพันธ์กับ Image
+  
+  CartItems CostumeOnCart[]
+  OrderItems CostumeOnOrder[]
+}
+
+model Image {
+  id          Int      @id @default(autoincrement())
+  costumeId   Int
+  asset_id    String
+  public_id   String
+  url         String    
+  secure_url  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costume     Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id        Int            @id @default(autoincrement())
+  totalPrice  Float          @default(0.0) // เพิ่มฟิลด์ totalPrice
+  orderById Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  type      CartItemType // RENTAL หรือ PURCHASE
+  orderBy   User           @relation(fields: [orderById], references: [id], onDelete: Cascade)
+  costumes  CostumeOnCart[]
+}
+
+model CostumeOnCart {
+  id         Int      @id @default(autoincrement())
+  cartId     Int
+  costumeId  Int
+  count      Int
+  price      Float
+
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id         Int             @id @default(autoincrement())
+  orderById  Int
+  status     OrderStatus     @default(NOT_PROCESS)
+  totalPrice Float            @default(0.0)
+  stripePaymentId String?         // เพิ่มฟิลด์ stripePaymentId (เป็น optional)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  orderBy    User            @relation(fields: [orderById], references: [id])
+
+  amount     Int
+  currentcy  String
+  statu      String
+
+  costumes   CostumeOnOrder[]
+}
+
+model CostumeOnOrder {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  costumeId  Int
+  price      Float
+  count      Int
+
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
+}
