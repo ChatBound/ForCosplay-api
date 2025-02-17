@@ -13,10 +13,11 @@ exports.create = async (req, res) => {
 
         console.log("Request Body:", req.body); // <== เพิ่มบรรทัดนี้
 
-        const { name, description, rentalPrice, size, salePrice, categoryId, available,quantity, images } = req.body;
+        const { name, description, rentalPrice, sizes, salePrice, categoryId, available,quantity, images } = req.body;
+      
 
-        if (!size) {
-            return res.status(400).json({ message: "Size is required" });
+        if (!sizes) {
+            return res.status(400).json({ message: "sizes is required" });
         }
 
         const costume = await prisma.costume.create({
@@ -26,7 +27,7 @@ exports.create = async (req, res) => {
                 rentalPrice: parseFloat(rentalPrice),
                 salePrice: parseFloat(salePrice),
                 categoryId: parseInt(categoryId),
-                available: Boolean(available),  size ,quantity: parseInt(quantity) , // เพิ่ม size เข้าไป
+                available: Boolean(available),  sizes ,quantity: parseInt(quantity) , // เพิ่ม sizes เข้าไป
                 images: {
                     create: images.map((item) => ({
                         asset_id: item.asset_id,
@@ -87,7 +88,7 @@ exports.read = async (req, res) => {
 // Update Costume
 exports.update = async (req, res) => {
     try {
-        const { name, description, rentalPrice, salePrice, categoryId, available, images , size , quantity } = req.body;
+        const { name, description, rentalPrice, salePrice, categoryId, available, images , sizes , quantity } = req.body;
         const { id } = req.params;
 
         // Delete old images
@@ -103,7 +104,7 @@ exports.update = async (req, res) => {
                 rentalPrice: parseFloat(rentalPrice),
                 salePrice: parseFloat(salePrice),
                 categoryId: parseInt(categoryId),
-                size,
+                sizes,
                 quantity: parseInt(quantity) ,
                 available: Boolean(available),
                 images: {

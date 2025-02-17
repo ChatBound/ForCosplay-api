@@ -26,13 +26,6 @@ enum OrderStatus {
   CANCELLED
 }
 
-enum Size {
-  S
-  M
-  L
-  XL
-  XXL
-}
 
 
 enum CartItemType {
@@ -68,7 +61,7 @@ model Costume {
   id          Int          @id @default(autoincrement())
   name        String       @db.VarChar(100)
   description String
-  size        Size
+  sizes       Json
   sold        Int          @default(0)
   quantity    Int
   categoryId  Int
@@ -101,6 +94,7 @@ model Cart {
   id        Int            @id @default(autoincrement())
   totalPrice  Float          @default(0.0) // เพิ่มฟิลด์ totalPrice
   orderById Int
+  size      String
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   type      CartItemType // RENTAL หรือ PURCHASE
@@ -128,6 +122,7 @@ model Order {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   orderBy    User            @relation(fields: [orderById], references: [id])
+  size       String? 
 
   amount     Int
   currentcy  String

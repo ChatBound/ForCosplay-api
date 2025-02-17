@@ -111,6 +111,7 @@ exports.userCart = async (req, res) => {
         costumeId: item.id,
         quantity: item.quantity,
         price: item.price, // ใช้ price ที่ถูกต้อง
+        size: item.size,
       };
     });
     const totalPrice = costumesData.reduce(
@@ -134,6 +135,8 @@ exports.userCart = async (req, res) => {
         orderById: userId,
         type: cart[0]?.selectedPurchaseType || "PURCHASE", // ใช้ค่าจาก selectedPurchaseType
         totalPrice: totalPrice, // บันทึก totalPrice เข้าไปในฐานข้อมูล
+        size: cart[0].selectedSize
+        
       },
     });
 
@@ -278,6 +281,7 @@ exports.saveOrder = async (req, res) => {
           connect: { id: req.user.id }, // เชื่อมโยง userId
         },
         totalPrice: userCart.totalPrice, // ใช้ totalPrice จาก cart
+        size: userCart.size ,
         stripePaymentId: id,
         amount: amountTHB,
         statu : status,
