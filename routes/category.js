@@ -9,7 +9,7 @@ const {
 } = require('../controllers/category');
 const { authCheck, adminCheck } = require('../middlewares/authCheck');
 
-// @ENDPOINT https://for-cosplay-api.vercel.app/api/category
+// @ENDPOINT https://forcosplay.com/api/category
 router.post('/category', authCheck, adminCheck, createCategory); // สร้างหมวดหมู่
 router.get('/category', getAllCategories); // ดึงข้อมูลหมวดหมู่ทั้งหมด
 router.get('/category/:id', getCategoryById); // ดึงข้อมูลหมวดหมู่ตาม ID

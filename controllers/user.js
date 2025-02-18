@@ -112,6 +112,9 @@ exports.userCart = async (req, res) => {
         quantity: item.quantity,
         price: item.price, // ใช้ price ที่ถูกต้อง
         size: item.size,
+        type: item.selectedPurchaseType || "PURCHASE", // เพิ่ม type ของแต่ละ item
+  
+        
       };
     });
     const totalPrice = costumesData.reduce(
@@ -122,25 +125,26 @@ exports.userCart = async (req, res) => {
       throw new Error("Cart total calculation failed");
     }
 
-    // Create new cart
-    const newCart = await prisma.cart.create({
-      data: {
-        costumes: {
-          create: costumesData.map((item) => ({
-            costumeId: item.costumeId,
-            count: item.quantity, // เพิ่มค่าสำหรับ count (ใช้ quantity)
-            price: item.price,   // คำนวณค่าแล้วกำหนดให้ฟิลด์ price
-          })),
-        },
-        orderById: userId,
-        type: cart[0]?.selectedPurchaseType || "PURCHASE", // ใช้ค่าจาก selectedPurchaseType
-        totalPrice: totalPrice, // บันทึก totalPrice เข้าไปในฐานข้อมูล
-        size: cart[0].selectedSize
-        
-      },
-    });
-
+// Create new cart
+const newCart = await prisma.cart.create({
+  data: {
+    costumes: {
+      create: costumesData.map((item) => ({
+        costumeId: item.costumeId,
+        count: item.quantity, // เพิ่มค่าสำหรับ count (ใช้ quantity)
+        price: item.price,   // คำนวณค่าแล้วกำหนดให้ฟิลด์ price
+        size: item.size,     // เพิ่ม size ลงใน CostumeOnCart
+        type: item.type, // ใช้ type ของแต่ละ item
+      })),
+    },
+    orderById: userId,
+    type: cart.selectedPurchaseType || "PURCHASE", // ใช้ค่าจาก selectedPurchaseType ของรายการแรก
+    totalPrice: totalPrice, // บันทึก totalPrice เข้าไปในฐานข้อมูล
+    size: cart[0].selectedSize, // ใช้ size จากรายการแรก
+  },
+});
     // ส่ง totalPrice กลับไปยัง frontend
+    console.log("Cart Data:", cart);
     res.json({
       message: "Add Cart Success",
       totalPrice, // ส่ง totalPrice กลับไปยัง frontend
@@ -189,6 +193,8 @@ exports.getUserCart = async (req, res) => {
         price: item.price, // ราคาต่อหน่วย
         count: item.count, // จำนวน
         totalPrice: item.price * item.count, // ราคารวมของรายการนี้
+        size: item.size, // เพิ่ม size ลงใน response
+        type: item.type, // เพิ่ม type ลงใน response
         
       })),
       totalPrice,
@@ -210,16 +216,16 @@ exports.emptyCart = async (req, res) => {
     const userId = req.user.id;
 
     const cart = await prisma.cart.findFirst({
-      where: { orderedById: userId },
+      where: { orderById: userId },
     });
     if (!cart) {
       return res.status(400).json({ message: "No cart found" });
     }
 
     await prisma.costumeOnCart.deleteMany({
-      where: { cartId: cart.id },
+      where: { cartId: cart.id  },
     });
-    await prisma.cart.deleteMany({ where: { orderedById: userId } });
+    await prisma.cart.deleteMany({ where: { orderById: userId } });
 
     res.json({ message: "Cart emptied successfully" });
   } catch (err) {
@@ -275,13 +281,14 @@ exports.saveOrder = async (req, res) => {
             costumeId: item.costumeId,
             count: item.count, // ใช้ count แทน quantity (ตาม Prisma Schema)
             price: item.price,
+            size: item.size || userCart.size, // เพิ่ม size ลงใน CostumeOnOrder
+            type: item.type || userCart.type, // เพิ่ม type ลงใน CostumeOnOrder
           })),
         },
         orderBy: {
           connect: { id: req.user.id }, // เชื่อมโยง userId
         },
         totalPrice: userCart.totalPrice, // ใช้ totalPrice จาก cart
-        size: userCart.size ,
         stripePaymentId: id,
         amount: amountTHB,
         statu : status,

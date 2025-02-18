@@ -108,6 +108,8 @@ model CostumeOnCart {
   costumeId  Int
   count      Int
   price      Float
+  size       String? 
+  type       String?
 
   cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
@@ -122,7 +124,7 @@ model Order {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   orderBy    User            @relation(fields: [orderById], references: [id])
-  size       String? 
+
 
   amount     Int
   currentcy  String
@@ -137,6 +139,9 @@ model CostumeOnOrder {
   costumeId  Int
   price      Float
   count      Int
+  size       String? 
+  type       String?
+
 
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
