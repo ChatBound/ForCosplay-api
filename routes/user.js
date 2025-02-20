@@ -11,6 +11,7 @@ const {
     saveAddress,
     saveOrder,
     getOrder,
+    updateProfile,
 } = require('../controllers/user');
 
 // Admin-only routes
