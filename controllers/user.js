@@ -358,3 +358,43 @@ exports.getOrder = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+
+const bcrypt = require('bcryptjs'); // ใช้เข้ารหัส password
+
+exports.updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id; // ดึง ID จาก token (middleware authCheck ต้องแน่ใจว่าแนบ req.user มา)
+        const { name, email, password } = req.body;
+
+        // ตรวจสอบว่ามีผู้ใช้อยู่หรือไม่
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        let updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(password, salt);
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+        });
+
+        res.json({
+            message: 'Profile updated successfully',
+            user: { id: updatedUser.id, name: updatedUser.name, email: updatedUser.email }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};

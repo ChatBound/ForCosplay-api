@@ -30,6 +30,19 @@ router.post('/user/address', authCheck, saveAddress); // บันทึกท�
 router.post('/user/order', authCheck, saveOrder); // บันทึกคำสั่งซื้อหรือเช่าชุดคอสเพลย์
 router.get('/user/order', authCheck, getOrder); // แสดงคำสั่งซื้อของผู้ใช้
 
+router.patch('/user/update-profile', authCheck , updateProfile); 
 
+router.get('/user/profile', authCheck, async (req, res) => {
+    try {
+      const user = req.user; // Assuming `authCheck` middleware attaches the user to `req.user`
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user); // Return user data
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
 module.exports = router;
