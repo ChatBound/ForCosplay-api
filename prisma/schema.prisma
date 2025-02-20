@@ -27,7 +27,6 @@ enum OrderStatus {
 }
 
 
-
 enum CartItemType {
   RENTAL
   PURCHASE
@@ -74,8 +73,19 @@ model Costume {
   category    Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   images      Image[]      // ความสัมพันธ์กับ Image
   
+  rentalOptions RentalOption[]  // เพิ่มความสัมพันธ์กับ RentalOption
   CartItems CostumeOnCart[]
   OrderItems CostumeOnOrder[]
+}
+
+model RentalOption {
+  id           Int      @id @default(autoincrement())
+  costumeId    Int
+  duration     Int      
+  price        Float    
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  costume      Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
 }
 
 model Image {
@@ -94,11 +104,14 @@ model Cart {
   id        Int            @id @default(autoincrement())
   totalPrice  Float          @default(0.0) // เพิ่มฟิลด์ totalPrice
   orderById Int
-  size      String
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  size      String
   type      CartItemType // RENTAL หรือ PURCHASE
   orderBy   User           @relation(fields: [orderById], references: [id], onDelete: Cascade)
+  
+  
+
   costumes  CostumeOnCart[]
 }
 
@@ -110,6 +123,8 @@ model CostumeOnCart {
   price      Float
   size       String? 
   type       String?
+
+  rentalDuration  Int?     // เพิ่มฟิลด์นี้สำหรับวันเช่า
 
   cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
@@ -123,6 +138,10 @@ model Order {
   stripePaymentId String?         // เพิ่มฟิลด์ stripePaymentId (เป็น optional)
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
+
+  rentalStartDate  DateTime?       // เพิ่มฟิลด์นี้สำหรับวันเริ่มต้นการเช่า
+  rentalEndDate    DateTime?       // เพิ่มฟิลด์นี้สำหรับวันสิ้นสุดการเช่า
+
   orderBy    User            @relation(fields: [orderById], references: [id])
 
 
@@ -141,6 +160,10 @@ model CostumeOnOrder {
   count      Int
   size       String? 
   type       String?
+  rentalStartDate DateTime?
+  rentalEndDate   DateTime?
+
+  rentalDuration  Int?     // เพิ่มฟิลด์นี้สำหรับวันเช่า
 
 
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)

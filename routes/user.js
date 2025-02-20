@@ -12,6 +12,8 @@ const {
     saveOrder,
     getOrder,
     updateProfile,
+    getRentals, // เพิ่มฟังก์ชัน getRentals
+    returnRental, // เพิ่มฟังก์ชัน returnRental
 } = require('../controllers/user');
 
 // Admin-only routes
@@ -45,5 +47,9 @@ router.get('/user/profile', authCheck, async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+
+  // Rental Tracking routes
+router.get('/user/rentals', authCheck, getRentals); // ดึงข้อมูลคำสั่งเช่า
+router.post('/user/return-rental', authCheck, returnRental); // แจ้งคืนสินค้า
 
 module.exports = router;

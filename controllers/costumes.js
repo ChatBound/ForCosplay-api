@@ -13,12 +13,23 @@ exports.create = async (req, res) => {
 
         console.log("Request Body:", req.body); // <== เพิ่มบรรทัดนี้
 
-        const { name, description, rentalPrice, sizes, salePrice, categoryId, available,quantity, images } = req.body;
+        const { name, description, rentalPrice, sizes, salePrice, categoryId, available,quantity, images , rentalOptions } = req.body;
       
 
         if (!sizes) {
             return res.status(400).json({ message: "sizes is required" });
         }
+
+        // ตรวจสอบ rentalOptions
+        if (!Array.isArray(rentalOptions)) {
+            return res.status(400).json({ message: "rentalOptions must be an array" });
+        }
+
+        // กรอง rentalOptions เพื่อให้มีเฉพาะข้อมูลที่ถูกต้อง
+        const validRentalOptions = Array.isArray(rentalOptions)
+        ? rentalOptions.filter((option) => option.duration && !isNaN(option.price))
+        : [];
+            
 
         const costume = await prisma.costume.create({
             data: {
@@ -36,8 +47,18 @@ exports.create = async (req, res) => {
                         secure_url: item.secure_url,
                     })),
                 },
-            },
-        });
+                rentalOptions: {
+                    createMany: {
+                      data: validRentalOptions.length > 0
+                        ? validRentalOptions.map((option) => ({
+                            duration: parseInt(option.duration),
+                            price: parseFloat(option.price),
+                          }))
+                        : [], // Default เป็น array ว่างหากไม่มีข้อมูล
+                    },
+                  },
+                },
+              });
 
         res.status(201).json({ message: "Costume created successfully", costume });
     } catch (err) {
@@ -54,7 +75,7 @@ exports.list = async (req, res) => {
         const costumes = await prisma.costume.findMany({
             take: parseInt(count),
             orderBy: { createdAt: 'desc' },
-            include: { category: true, images: true },
+            include: { category: true, images: true , rentalOptions: true},
         });
 
         res.status(200).json(costumes);
@@ -67,34 +88,43 @@ exports.list = async (req, res) => {
 // Read Costume by ID
 exports.read = async (req, res) => {
     try {
-        const { id } = req.params;
-
-        const costume = await prisma.costume.findUnique({
-            where: { id: Number(id) },
-            include: { category: true, images: true },
-        });
-
-        if (!costume) {
-            return res.status(404).json({ message: "Costume not found" });
-        }
-
-        res.status(200).json(costume);
+      const { id } = req.params;
+      const costume = await prisma.costume.findUnique({
+        where: { id: Number(id) },
+        include: { category: true, images: true, rentalOptions: true }, // รวม rentalOptions
+      });
+  
+      if (!costume) {
+        return res.status(404).json({ message: "Costume not found" });
+      }
+  
+      res.status(200).json(costume);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Server Error", error: err.message });
+      console.error(err);
+      res.status(500).json({ message: "Server Error", error: err.message });
     }
-};
+  };
 
 // Update Costume
 exports.update = async (req, res) => {
     try {
-        const { name, description, rentalPrice, salePrice, categoryId, available, images , sizes , quantity } = req.body;
+        const { name, description, rentalPrice, salePrice, categoryId, available, images , sizes , quantity ,rentalOptions } = req.body;
         const { id } = req.params;
 
         // Delete old images
         await prisma.image.deleteMany({
             where: { costumeId: Number(id) },
         });
+
+        // ลบ rentalOptions เดิม
+        await prisma.rentalOption.deleteMany({
+            where: { costumeId: Number(id) },
+        });
+
+            // กรอง rentalOptions เพื่อให้มีเฉพาะข้อมูลที่ถูกต้อง
+        const validRentalOptions = Array.isArray(rentalOptions)
+        ? rentalOptions.filter((option) => option.duration && !isNaN(option.price))
+        : [];
 
         const updatedCostume = await prisma.costume.update({
             where: { id: Number(id) },
@@ -105,6 +135,7 @@ exports.update = async (req, res) => {
                 salePrice: parseFloat(salePrice),
                 categoryId: parseInt(categoryId),
                 sizes,
+                rentalOptions,
                 quantity: parseInt(quantity) ,
                 available: Boolean(available),
                 images: {
@@ -115,8 +146,18 @@ exports.update = async (req, res) => {
                         secure_url: item.secure_url,
                     })),
                 },
-            },
-        });
+                rentalOptions: {
+                    createMany: {
+                      data: validRentalOptions.length > 0
+                        ? validRentalOptions.map((option) => ({
+                            duration: parseInt(option.duration),
+                            price: parseFloat(option.price),
+                          }))
+                        : [], // Default เป็น array ว่างหากไม่มีข้อมูล
+                    },
+                  },
+                },
+              });
 
         res.status(200).json({ message: "Costume updated successfully", updatedCostume });
     } catch (err) {

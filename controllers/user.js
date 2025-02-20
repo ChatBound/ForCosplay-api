@@ -77,9 +77,9 @@ exports.userCart = async (req, res) => {
       }
       // Determine the price based on selectedPurchaseType
       const price =
-        item.selectedPurchaseType === "RENTAL"
-          ? costume.rentalPrice
-          : costume.salePrice;
+        item.selectedPurchaseType === "RENTAL" && item.rentalDuration
+          ? costume.rentalPrice * item.rentalDuration // คูณกับจำนวนวันเช่า
+          : costume.salePrice; // ราคาขายปกติ
       if (!price || isNaN(price)) {
         return res.status(400).json({
           ok: false,
@@ -113,6 +113,7 @@ exports.userCart = async (req, res) => {
         price: item.price, // ใช้ price ที่ถูกต้อง
         size: item.size,
         type: item.selectedPurchaseType || "PURCHASE", // เพิ่ม type ของแต่ละ item
+        rentalDuration: item.selectedRentalDuration || null, // เพิ่ม rentalDuration ลงใน CostumeOnCart
   
         
       };
@@ -134,6 +135,7 @@ const newCart = await prisma.cart.create({
         count: item.quantity, // เพิ่มค่าสำหรับ count (ใช้ quantity)
         price: item.price,   // คำนวณค่าแล้วกำหนดให้ฟิลด์ price
         size: item.size,     // เพิ่ม size ลงใน CostumeOnCart
+        rentalDuration: item.rentalDuration, // เพิ่ม rentalDuration ลงใน CostumeOnCart
         type: item.type, // ใช้ type ของแต่ละ item
       })),
     },
@@ -200,14 +202,13 @@ exports.getUserCart = async (req, res) => {
       totalPrice,
     });
 
-    
-  
 
-    
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
   }
+
+  
 };
 
 // Empty User Cart
@@ -273,28 +274,42 @@ exports.saveOrder = async (req, res) => {
       return res.status(400).json({ message: "Invalid total price in cart" });
     }
 
-    const amountTHB = Number(amount) / 100;
-    const order = await prisma.order.create({
-      data: {
-        costumes: {
-          create: userCart.costumes.map((item) => ({
+    // คำนวณวันเช่าสำหรับแต่ละสินค้า
+    const today = new Date();
+    const orderData = {
+      costumes: {
+        create: userCart.costumes.map((item) => {
+          let rentalStartDate = new Date(today);
+          let rentalEndDate = new Date(today);
+
+          if (item.type === "RENTAL" && item.rentalDuration > 0) {
+            rentalEndDate.setDate(today.getDate() + item.rentalDuration);
+          } else {
+            rentalEndDate.setDate(today.getDate() + 1); // ค่าเริ่มต้นเช่า 1 วัน
+          }
+
+          return {
             costumeId: item.costumeId,
-            count: item.count, // ใช้ count แทน quantity (ตาม Prisma Schema)
+            count: item.count,
             price: item.price,
-            size: item.size || userCart.size, // เพิ่ม size ลงใน CostumeOnOrder
-            type: item.type || userCart.type, // เพิ่ม type ลงใน CostumeOnOrder
-          })),
-        },
-        orderBy: {
-          connect: { id: req.user.id }, // เชื่อมโยง userId
-        },
-        totalPrice: userCart.totalPrice, // ใช้ totalPrice จาก cart
-        stripePaymentId: id,
-        amount: amountTHB,
-        statu : status,
-        currentcy: currency,
+            size: item.size || userCart.size,
+            type: item.type || userCart.type,
+            rentalDuration: item.rentalDuration,
+            rentalStartDate: rentalStartDate,
+            rentalEndDate: rentalEndDate,
+          };
+        }),
       },
-    });
+      orderBy: { connect: { id: req.user.id } },
+      totalPrice: userCart.totalPrice,
+      stripePaymentId: id,
+      amount: Number(amount) / 100,
+      statu: status,
+      currentcy: currency || "thb",
+    };
+
+    // บันทึกข้อมูลออเดอร์
+    const order = await prisma.order.create({ data: orderData });
 
     // Update costume availability and sold count
     for (const item of userCart.costumes) {
@@ -302,22 +317,20 @@ exports.saveOrder = async (req, res) => {
         where: { id: item.costumeId },
         select: { sold: true, quantity: true },
       });
-    
+
       if (!costume) {
         throw new Error(`Costume with ID ${item.costumeId} not found`);
       }
-    
-      // ตรวจสอบว่ายังมีสินค้าเหลืออยู่หรือไม่
-      if (costume.quantity <= 0) {
-        throw new Error(`Costume with ID ${item.costumeId} is out of stock`);
+
+      if (costume.quantity < item.count) {
+        throw new Error(`Not enough stock for costume ID ${item.costumeId}`);
       }
-    
-      // อัปเดตค่า sold และ quantity
+
       await prisma.costume.update({
         where: { id: item.costumeId },
         data: {
-          sold: { increment: item.count }, // เพิ่มค่า sold ตามจำนวนที่ซื้อ
-          quantity: { decrement: item.count }, // ลดค่า quantity ตามจำนวนที่ซื้อ
+          sold: { increment: item.count },
+          quantity: { decrement: item.count },
         },
       });
     }
@@ -331,6 +344,7 @@ exports.saveOrder = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
 
 
 
@@ -358,6 +372,7 @@ exports.getOrder = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
 
 
 const bcrypt = require('bcryptjs'); // ใช้เข้ารหัส password
@@ -398,3 +413,79 @@ exports.updateProfile = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+
+
+
+// Get Rentals (เฉพาะคำสั่งเช่า)
+exports.getRentals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const rentals = await prisma.order.findMany({
+      where: {
+        orderById: userId,
+        costumes: { some: { type: "RENTAL" } },
+      },
+      include: {
+        costumes: {
+          include: { costume: true },
+        },
+        orderBy: true,
+      },
+    });
+
+    if (!rentals || rentals.length === 0) {
+      return res.status(404).json({ message: "No rental orders found" });
+    }
+
+    const formattedRentals = rentals.flatMap((order) =>
+      order.costumes.map((costume) => ({
+        id: order.id,
+        username: order.orderBy.email,
+        product: costume.costume.name || "ไม่มีข้อมูล",
+        size: costume.size || "ไม่มีข้อมูล",
+        startDate: costume.rentalStartDate ? costume.rentalStartDate.toISOString() : null,
+        endDate: costume.rentalEndDate ? costume.rentalEndDate.toISOString() : null,
+        status: order.status || "ไม่มีข้อมูล",
+      }))
+    );
+
+    res.json(formattedRentals);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+exports.returnRental = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    const order = await prisma.order.findUnique({
+      where: { id: Number(orderId) },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const now = new Date();
+    if (new Date(order.rentalEndDate) < now) {
+      return res.status(400).json({ message: "Cannot return overdue rental" });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: Number(orderId) },
+      data: {
+        status: "Returned", // อัปเดตสถานะเป็น "Returned"
+      },
+    });
+
+    res.json({ message: "Marked rental as returned successfully", order: updatedOrder });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
