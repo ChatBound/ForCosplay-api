@@ -14,6 +14,7 @@ const {
     updateProfile,
     getRentals, // เพิ่มฟังก์ชัน getRentals
     returnRental, // เพิ่มฟังก์ชัน returnRental
+    updateRentalStatus,
 } = require('../controllers/user');
 
 // Admin-only routes
@@ -51,5 +52,8 @@ router.get('/user/profile', authCheck, async (req, res) => {
   // Rental Tracking routes
 router.get('/user/rentals', authCheck, getRentals); // ดึงข้อมูลคำสั่งเช่า
 router.post('/user/return-rental', authCheck, returnRental); // แจ้งคืนสินค้า
+
+
+router.put("/user/rentals/:id/status", authCheck, updateRentalStatus); // ใช้สำหรับอัปเดตสถานะเช่าสินค้า
 
 module.exports = router;

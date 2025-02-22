@@ -143,8 +143,9 @@ model Order {
   rentalEndDate    DateTime?       // เพิ่มฟิลด์นี้สำหรับวันสิ้นสุดการเช่า
 
   orderBy    User            @relation(fields: [orderById], references: [id])
+  
 
-
+  
   amount     Int
   currentcy  String
   statu      String
@@ -164,8 +165,10 @@ model CostumeOnOrder {
   rentalEndDate   DateTime?
 
   rentalDuration  Int?     // เพิ่มฟิลด์นี้สำหรับวันเช่า
+  rentalStatus    String?    @default("Pending") // เปลี่ยนจาก status เป็น rentalStatus
 
 
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   costume    Costume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
 }
+

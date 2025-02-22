@@ -53,7 +53,11 @@ exports.getOrderAdmin = async (req, res) => {
                     }
                 }
             }
+            
         });
+        if (!orders || orders.length === 0) {
+            return res.status(404).json({ message: "No orders found" });
+          }
 
         res.json(orders);
     } catch (err) {

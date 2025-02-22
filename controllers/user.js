@@ -11,6 +11,7 @@ exports.listUsers = async (req, res) => {
         role: true,
         enabled: true,
         address: true,
+        createdAt: true,
       },
     });
     res.json(users);
@@ -281,13 +282,11 @@ exports.saveOrder = async (req, res) => {
         create: userCart.costumes.map((item) => {
           let rentalStartDate = new Date(today);
           let rentalEndDate = new Date(today);
-
           if (item.type === "RENTAL" && item.rentalDuration > 0) {
             rentalEndDate.setDate(today.getDate() + item.rentalDuration);
           } else {
             rentalEndDate.setDate(today.getDate() + 1); // ค่าเริ่มต้นเช่า 1 วัน
           }
-
           return {
             costumeId: item.costumeId,
             count: item.count,
@@ -297,6 +296,7 @@ exports.saveOrder = async (req, res) => {
             rentalDuration: item.rentalDuration,
             rentalStartDate: rentalStartDate,
             rentalEndDate: rentalEndDate,
+            rentalStatus: item.type === "RENTAL" ? "Rented" : null,
           };
         }),
       },
@@ -317,15 +317,12 @@ exports.saveOrder = async (req, res) => {
         where: { id: item.costumeId },
         select: { sold: true, quantity: true },
       });
-
       if (!costume) {
         throw new Error(`Costume with ID ${item.costumeId} not found`);
       }
-
       if (costume.quantity < item.count) {
         throw new Error(`Not enough stock for costume ID ${item.costumeId}`);
       }
-
       await prisma.costume.update({
         where: { id: item.costumeId },
         data: {
@@ -352,7 +349,6 @@ exports.saveOrder = async (req, res) => {
 exports.getOrder = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const orders = await prisma.order.findMany({
       where: { orderById: userId },
       include: {
@@ -361,11 +357,9 @@ exports.getOrder = async (req, res) => {
         },
       },
     });
-
     if (!orders || orders.length === 0) {
       return res.status(404).json({ message: "No orders found" });
     }
-
     res.json({ orders });
   } catch (err) {
     console.error(err);
@@ -376,7 +370,6 @@ exports.getOrder = async (req, res) => {
 
 
 const bcrypt = require('bcryptjs'); // ใช้เข้ารหัส password
-
 exports.updateProfile = async (req, res) => {
     try {
         const userId = req.user.id; // ดึง ID จาก token (middleware authCheck ต้องแน่ใจว่าแนบ req.user มา)
@@ -421,7 +414,6 @@ exports.updateProfile = async (req, res) => {
 exports.getRentals = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const rentals = await prisma.order.findMany({
       where: {
         orderById: userId,
@@ -434,11 +426,9 @@ exports.getRentals = async (req, res) => {
         orderBy: true,
       },
     });
-
     if (!rentals || rentals.length === 0) {
       return res.status(404).json({ message: "No rental orders found" });
     }
-
     const formattedRentals = rentals.flatMap((order) =>
       order.costumes.map((costume) => ({
         id: order.id,
@@ -447,10 +437,9 @@ exports.getRentals = async (req, res) => {
         size: costume.size || "ไม่มีข้อมูล",
         startDate: costume.rentalStartDate ? costume.rentalStartDate.toISOString() : null,
         endDate: costume.rentalEndDate ? costume.rentalEndDate.toISOString() : null,
-        status: order.status || "ไม่มีข้อมูล",
+        rentalStatus: costume.rentalStatus || "ไม่มีข้อมูล",
       }))
     );
-
     res.json(formattedRentals);
   } catch (err) {
     console.error(err);
@@ -458,33 +447,55 @@ exports.getRentals = async (req, res) => {
   }
 };
 
+// Return Rental
 exports.returnRental = async (req, res) => {
   try {
     const { orderId } = req.body;
-
     const order = await prisma.order.findUnique({
       where: { id: Number(orderId) },
     });
-
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
-
     const now = new Date();
     if (new Date(order.rentalEndDate) < now) {
       return res.status(400).json({ message: "Cannot return overdue rental" });
     }
-
     const updatedOrder = await prisma.order.update({
       where: { id: Number(orderId) },
       data: {
         status: "Returned", // อัปเดตสถานะเป็น "Returned"
       },
     });
-
     res.json({ message: "Marked rental as returned successfully", order: updatedOrder });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+
+// Update Rental Status
+exports.updateRentalStatus = async (req, res) => {
+  try {
+    const { id } = req.params; // ดึง ID จาก URL
+    const { status } = req.body; // ดึงค่าที่ส่งมาใน body
+    // อัปเดตค่าใน Database
+    const updatedRental = await prisma.order.update({
+      where: { id: parseInt(id) },
+      data: {
+        costumes: {
+          updateMany: {
+            where: { rentalStatus: { not: status } }, // อัปเดตเฉพาะที่ไม่ตรงกับ status เดิม
+            data: { rentalStatus: status },
+          },
+        },
+      },
+      include: { costumes: true },
+    });
+    res.json({ message: "Rental status updated", rental: updatedRental });
+  } catch (err) {
+    console.error("Error updating rental status:", err);
     res.status(500).json({ message: "Server Error" });
   }
 };
